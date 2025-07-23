@@ -1,0 +1,25 @@
+version: '3.8'
+
+services:
+  power-monitor:
+    build: .
+    container_name: power-monitor-pro
+    restart: always
+    volumes:
+      - ./power_monitor_data:/data
+    environment:
+      # --- !!! 请在这里填写您的 Resend.com 配置 !!! ---
+      # 从 Resend.com 仪表盘获取你的 API Key
+      - RESEND_API_KEY=re_xxxxxxxxxxxxxxxxxxxxxx
+
+      # 你的发件人地址。格式: '显示名称 <alerts@your-verified-domain.com>'
+      #    注意: @后面的域名必须是你在 Resend 上验证过的！
+      - SENDER_FROM_ADDRESS=服务器警卫 <alerts@your-verified-domain.com>
+
+      # 你的收件人邮箱
+      - RECIPIENT_EMAIL=your_personal_email@example.com
+
+      # --- 其他自定义配置 ---
+      - SERVER_NAME=跳板机 # 给你的服务器起个易于识别的名字
+      - OUTAGE_THRESHOLD=180 # (可选) 判定为异常断电的阈值（秒），默认3分钟
+      - TZ=Asia/Shanghai     # (重要) 设置时区，保证邮件中的时间与你本地一致
