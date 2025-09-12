@@ -22,4 +22,11 @@ services:
       # --- 其他自定义配置 ---
       - SERVER_NAME=跳板机 # 给你的服务器起个易于识别的名字
       - OUTAGE_THRESHOLD=180 # (可选) 判定为异常断电的阈值（秒），默认3分钟
+      - NETWORK_OUTAGE_THRESHOLD=300 # (可选) 判定为网络异常的阈值（秒），默认5分钟
+      
+      # --- 网络检测配置 ---
+      - INTERNAL_TARGETS=192.168.1.1,192.168.0.1 # (可选) 内网检测目标，逗号分隔
+      - EXTERNAL_TARGETS=114.114.114.114,223.5.5.5,baidu.com # (可选) 外网检测目标
+      - DNS_TARGET=baidu.com # (可选) DNS检测目标
+      
       - TZ=Asia/Shanghai     # (重要) 设置时区，保证邮件中的时间与你本地一致
