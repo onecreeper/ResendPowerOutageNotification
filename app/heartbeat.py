@@ -3,11 +3,19 @@ import os
 import json
 import subprocess
 import socket
+import resend
 
 HEARTBEAT_FILE_A = "/data/heartbeat_a.log"
 HEARTBEAT_FILE_B = "/data/heartbeat_b.log"
 NETWORK_STATUS_FILE = "/data/network_status.log"
+PENDING_NOTIFICATIONS_FILE = "/data/pending_notifications.log"
 HEARTBEAT_INTERVAL = 60  # 秒
+
+# 从环境变量获取邮件配置
+RESEND_API_KEY = os.getenv("RESEND_API_KEY")
+SENDER_FROM_ADDRESS = os.getenv("SENDER_FROM_ADDRESS")
+RECIPIENT_EMAIL = os.getenv("RECIPIENT_EMAIL")
+SERVER_NAME = os.getenv("SERVER_NAME", "Unknown Server")
 
 # 从环境变量获取网络检测配置
 def get_network_targets():
@@ -103,6 +111,77 @@ def save_network_status(status):
     except Exception as e:
         print(f"保存网络状态错误: {e}")
 
+def _load_pending_notifications():
+    """加载待发送通知队列"""
+    if not os.path.isfile(PENDING_NOTIFICATIONS_FILE):
+        return []
+    
+    try:
+        with open(PENDING_NOTIFICATIONS_FILE, 'r') as f:
+            return json.load(f)
+    except (json.JSONDecodeError, IOError):
+        return []
+
+def _save_pending_notifications(notifications):
+    """保存待发送通知队列"""
+    try:
+        with open(PENDING_NOTIFICATIONS_FILE, 'w') as f:
+            json.dump(notifications, f)
+    except IOError as e:
+        print(f"保存待发送通知失败: {e}")
+
+def send_email_with_resend(subject, html_body):
+    """使用 Resend API 发送邮件"""
+    if not all([RESEND_API_KEY, SENDER_FROM_ADDRESS, RECIPIENT_EMAIL]):
+        print("错误：邮件配置环境变量不完整。无法发送邮件。")
+        return False
+
+    resend.api_key = RESEND_API_KEY
+    params = {
+        "from": SENDER_FROM_ADDRESS,
+        "to": [RECIPIENT_EMAIL],
+        "subject": subject,
+        "html": html_body,
+    }
+    try:
+        email = resend.Emails.send(params)
+        print(f"邮件已通过 Resend 发送成功！ Email ID: {email['id']}")
+        return True
+    except Exception as e:
+        print(f"使用 Resend 发送邮件失败: {e}")
+        return False
+
+def process_pending_notifications():
+    """处理待发送的通知队列"""
+    notifications = _load_pending_notifications()
+    if not notifications:
+        return
+    
+    print(f"发现 {len(notifications)} 个待发送通知，尝试发送...")
+    
+    successful_notifications = []
+    failed_notifications = []
+    
+    for notification in notifications:
+        if send_email_with_resend(notification["subject"], notification["html_body"]):
+            successful_notifications.append(notification)
+        else:
+            failed_notifications.append(notification)
+    
+    # 保存发送失败的通知（用于重试）
+    _save_pending_notifications(failed_notifications)
+    
+    if successful_notifications:
+        print(f"成功发送 {len(successful_notifications)} 个通知")
+    if failed_notifications:
+        print(f"仍有 {len(failed_notifications)} 个通知发送失败，将在下次重试")
+
+def check_and_send_pending_notifications(network_status):
+    """检查网络状态并发送待处理通知"""
+    # 只有在外网正常时才尝试发送通知
+    if network_status["external_network"]:
+        process_pending_notifications()
+
 print("--- 后台任务：心跳服务已启动（增强版）---")
 use_file_a = True
 
@@ -122,6 +201,9 @@ while True:
         print(f"心跳更新: {time.strftime('%Y-%m-%d %H:%M:%S')} - "
               f"内网: {'正常' if network_status['internal_network'] else '异常'} - "
               f"外网: {'正常' if network_status['external_network'] else '异常'}")
+        
+        # 检查并发送待处理通知
+        check_and_send_pending_notifications(network_status)
               
     except Exception as e:
         print(f"心跳错误：更新失败: {e}")

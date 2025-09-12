@@ -13,6 +13,7 @@ HEARTBEAT_FILE_A = "/data/heartbeat_a.log"
 HEARTBEAT_FILE_B = "/data/heartbeat_b.log"
 NETWORK_STATUS_FILE = "/data/network_status.log"
 NETWORK_HISTORY_FILE = "/data/network_history.log"
+PENDING_NOTIFICATIONS_FILE = "/data/pending_notifications.log"
 OUTAGE_THRESHOLD = int(os.getenv("OUTAGE_THRESHOLD", 180))
 NETWORK_OUTAGE_THRESHOLD = int(os.getenv("NETWORK_OUTAGE_THRESHOLD", 300))  # 5分钟
 SERVER_NAME = os.getenv("SERVER_NAME", "Unknown Server")
@@ -96,6 +97,32 @@ def _save_network_history(history):
             json.dump(history, f)
     except IOError as e:
         print(f"保存网络历史记录失败: {e}")
+
+def _load_pending_notifications():
+    """加载待发送通知队列"""
+    if not os.path.isfile(PENDING_NOTIFICATIONS_FILE):
+        return []
+    
+    try:
+        with open(PENDING_NOTIFICATIONS_FILE, 'r') as f:
+            return json.load(f)
+    except (json.JSONDecodeError, IOError):
+        return []
+
+def _save_pending_notifications(notifications):
+    """保存待发送通知队列"""
+    try:
+        with open(PENDING_NOTIFICATIONS_FILE, 'w') as f:
+            json.dump(notifications, f)
+    except IOError as e:
+        print(f"保存待发送通知失败: {e}")
+
+def _add_pending_notification(notification):
+    """添加待发送通知到队列"""
+    notifications = _load_pending_notifications()
+    notifications.append(notification)
+    _save_pending_notifications(notifications)
+    print(f"已将断电通知添加到待发送队列，当前队列长度: {len(notifications)}")
 
 def check_network_status_changes():
     """检查网络状态变化并发送通知"""
@@ -222,8 +249,22 @@ def main():
             </table>
         </body></html>
         """
-        print("检测到异常断电，准备通过 Resend 发送邮件...")
-        send_email_with_resend(subject, html_body)
+        print("检测到异常断电，添加到待发送队列...")
+        
+        # 创建断电通知对象
+        outage_notification = {
+            "type": "power_outage",
+            "timestamp": int(time.time()),
+            "power_off_time": power_off_time,
+            "power_on_time": power_on_time,
+            "duration_formatted": duration_formatted,
+            "duration_seconds": duration_seconds,
+            "subject": subject,
+            "html_body": html_body
+        }
+        
+        # 添加到待发送队列
+        _add_pending_notification(outage_notification)
     else:
         print("状态：时间差在阈值内，判定为正常重启或服务重启。")
     
