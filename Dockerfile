@@ -1,8 +1,9 @@
 FROM python:3.9-slim
 
-# 使用国内镜像源加速构建
-RUN sed -i 's/deb.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list && \
-    sed -i 's/security.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list
+# 使用国内镜像源加速构建（先确保sources.list存在）
+RUN echo "deb http://mirrors.aliyun.com/debian/ bullseye main" > /etc/apt/sources.list && \
+    echo "deb http://mirrors.aliyun.com/debian/ bullseye-updates main" >> /etc/apt/sources.list && \
+    echo "deb http://mirrors.aliyun.com/debian-security bullseye-security main" >> /etc/apt/sources.list
 
 # 安装最小必要的依赖
 RUN apt-get update && \
