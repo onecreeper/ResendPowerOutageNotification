@@ -1,58 +1,51 @@
-# 服务器断电和网络监控系统使用RESEND
-## 简介
-服务器断电和网络监控系统，通过定时任务检测服务器是否断电、内网和外网连接状态，在状态变化时自动发送邮件通知。
+# 服务器监控系统
 
-## 功能特性
-- ✅ 断电检测和恢复通知
-- ✅ 内网连接状态监控
-- ✅ 外网连接状态监控  
-- ✅ DNS解析状态检测
-- ✅ 网络状态变化实时通知
-- ✅ 自愈式心跳文件管理
-- ✅ 严格的稳定性保障
+断电和网络状态监控，状态变化时自动发送邮件通知。
 
-## 项目起源
-发现resend的api可以发送邮件，而且免费，不用白不用，没有需求就创造需求。然后~~自己~~AI写了一个脚本。
+## 功能
+- 断电检测和恢复通知
+- 内网和外网连接监控
+- 网络状态变化实时通知
+- 自愈功能和稳定性保障
 
-## 使用方法
-1. 克隆本仓库
-2. cd 到仓库目录
-3. 修改docker-compose.yml文件，根据自己需求设置环境变量
-4. docker-compose up -d 或者 docker compose up -d
+## 快速开始
 
-## 环境变量配置说明
+1. **配置环境变量**
+   编辑 `docker-compose.yml`，设置：
+   ```yaml
+   - RESEND_API_KEY=re_你的API密钥
+   - SENDER_FROM_ADDRESS=名称 <alerts@已验证域名.com>
+   - RECIPIENT_EMAIL=你的邮箱@example.com
+   - SERVER_NAME=服务器名称
+   ```
 
-### 必需配置
-- `RESEND_API_KEY`: Resend.com的API密钥
-- `SENDER_FROM_ADDRESS`: 发件人邮箱地址（必须是验证过的域名）
-- `RECIPIENT_EMAIL`: 收件人邮箱地址
+2. **启动服务**
+   ```bash
+   docker-compose up -d
+   ```
 
-### 服务器配置
-- `SERVER_NAME`: 服务器名称（用于邮件标识）
-- `OUTAGE_THRESHOLD`: 断电判定阈值（秒，默认180）
-- `NETWORK_OUTAGE_THRESHOLD`: 网络异常判定阈值（秒，默认300）
-- `TZ`: 时区设置（建议Asia/Shanghai）
+3. **查看日志**
+   ```bash
+   docker-compose logs -f
+   ```
 
-### 网络检测配置（可选）
-- `INTERNAL_TARGETS`: 内网检测目标，逗号分隔（默认：192.168.1.1,192.168.0.1）
-- `EXTERNAL_TARGETS`: 外网检测目标，逗号分隔（默认：114.114.114.114,223.5.5.5,baidu.com）
-- `DNS_TARGET`: DNS检测目标（默认：baidu.com）
+## 网络检测
+默认检测目标（可自定义）：
+- 内网：192.168.1.1, 192.168.0.1
+- 外网：114.114.114.114, 223.5.5.5, baidu.com
+- DNS：baidu.com
 
-## 网络检测说明
+使用环境变量 `INTERNAL_TARGETS`, `EXTERNAL_TARGETS`, `DNS_TARGET` 自定义检测目标。
 
-系统会自动检测以下网络状态，所有检测目标均可通过环境变量自定义：
+## Dockerfile选项
+- `Dockerfile` (默认): 使用国内镜像加速，构建更快
+- `Dockerfile.original`: 不使用镜像，使用官方源
 
-### 默认检测目标（中国大陆友好）
-- **内网连接**: 常见路由器IP（192.168.1.1, 192.168.0.1）
-- **外网连接**: 国内公共DNS（114.114.114.114, 223.5.5.5）和百度
-- **DNS解析**: 百度域名（baidu.com）
+切换Dockerfile:
+```bash
+# 使用加速版本（默认）
+docker-compose build
 
-### 自定义配置示例
-```yaml
-# 使用自定义检测目标
-- INTERNAL_TARGETS=192.168.31.1,192.168.1.254
-- EXTERNAL_TARGETS=8.8.8.8,1.1.1.1,google.com
-- DNS_TARGET=google.com
+# 使用原始版本  
+docker-compose -f docker-compose.yml build --build-arg DOCKERFILE=Dockerfile.original
 ```
-
-当网络状态发生变化（中断或恢复）时，系统会立即发送通知邮件。
