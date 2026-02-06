@@ -34,3 +34,9 @@ power_monitor_data/
 htmlcov/
 .tox/
 .hypothesis/
+
+# 环境变量文件（包含敏感信息）
+.env
+
+# 临时测试目录
+power_monitor_test_*/
