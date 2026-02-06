@@ -150,23 +150,34 @@ class TestHeartbeatFunctionality:
             assert result == True
             mock_resend.assert_called_once()
 
-    def test_send_email_with_resend_missing_config(self):
+    def test_send_email_with_resend_missing_config(self, mock_env_vars):
         """测试缺少邮件配置时"""
         import sys
         sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
         from app import heartbeat
 
-        # 清除环境变量
-        os.environ.pop("RESEND_API_KEY", None)
-        os.environ.pop("SENDER_FROM_ADDRESS", None)
-        os.environ.pop("RECIPIENT_EMAIL", None)
+        # 保存原始值
+        original_api_key = heartbeat.RESEND_API_KEY
+        original_from = heartbeat.SENDER_FROM_ADDRESS
+        original_to = heartbeat.RECIPIENT_EMAIL
 
-        result = heartbeat.send_email_with_resend(
-            "Test Subject",
-            "<html>Test</html>"
-        )
+        # 清除配置
+        heartbeat.RESEND_API_KEY = None
+        heartbeat.SENDER_FROM_ADDRESS = None
+        heartbeat.RECIPIENT_EMAIL = None
 
-        assert result == False
+        try:
+            result = heartbeat.send_email_with_resend(
+                "Test Subject",
+                "<html>Test</html>"
+            )
+
+            assert result == False
+        finally:
+            # 恢复原始值
+            heartbeat.RESEND_API_KEY = original_api_key
+            heartbeat.SENDER_FROM_ADDRESS = original_from
+            heartbeat.RECIPIENT_EMAIL = original_to
 
     def test_send_email_with_resend_api_error(self, mock_env_vars):
         """测试 Resend API 错误"""

@@ -3,7 +3,6 @@ import os
 import json
 import subprocess
 import socket
-import resend
 
 HEARTBEAT_FILE_A = "/data/heartbeat_a.log"
 HEARTBEAT_FILE_B = "/data/heartbeat_b.log"
@@ -136,6 +135,7 @@ def send_email_with_resend(subject, html_body):
         print("错误：邮件配置环境变量不完整。无法发送邮件。")
         return False
 
+    import resend
     resend.api_key = RESEND_API_KEY
     params = {
         "from": SENDER_FROM_ADDRESS,
@@ -182,31 +182,32 @@ def check_and_send_pending_notifications(network_status):
     if network_status["external_network"]:
         process_pending_notifications()
 
-print("--- 后台任务：心跳服务已启动（增强版）---")
-use_file_a = True
+if __name__ == "__main__":
+    print("--- 后台任务：心跳服务已启动（增强版）---")
+    use_file_a = True
 
-while True:
-    target_file = HEARTBEAT_FILE_A if use_file_a else HEARTBEAT_FILE_B
-    
-    try:
-        # 更新心跳文件
-        os.makedirs("/data", exist_ok=True)
-        with open(target_file, 'w') as f:
-            f.write(str(int(time.time())))
-        
-        # 检查并保存网络状态
-        network_status = check_network_connectivity()
-        save_network_status(network_status)
-        
-        print(f"心跳更新: {time.strftime('%Y-%m-%d %H:%M:%S')} - "
-              f"内网: {'正常' if network_status['internal_network'] else '异常'} - "
-              f"外网: {'正常' if network_status['external_network'] else '异常'}")
-        
-        # 检查并发送待处理通知
-        check_and_send_pending_notifications(network_status)
-              
-    except Exception as e:
-        print(f"心跳错误：更新失败: {e}")
-    
-    use_file_a = not use_file_a
-    time.sleep(HEARTBEAT_INTERVAL)
+    while True:
+        target_file = HEARTBEAT_FILE_A if use_file_a else HEARTBEAT_FILE_B
+
+        try:
+            # 更新心跳文件
+            os.makedirs("/data", exist_ok=True)
+            with open(target_file, 'w') as f:
+                f.write(str(int(time.time())))
+
+            # 检查并保存网络状态
+            network_status = check_network_connectivity()
+            save_network_status(network_status)
+
+            print(f"心跳更新: {time.strftime('%Y-%m-%d %H:%M:%S')} - "
+                  f"内网: {'正常' if network_status['internal_network'] else '异常'} - "
+                  f"外网: {'正常' if network_status['external_network'] else '异常'}")
+
+            # 检查并发送待处理通知
+            check_and_send_pending_notifications(network_status)
+
+        except Exception as e:
+            print(f"心跳错误：更新失败: {e}")
+
+        use_file_a = not use_file_a
+        time.sleep(HEARTBEAT_INTERVAL)
