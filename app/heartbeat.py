@@ -3,6 +3,8 @@ import os
 import json
 import subprocess
 import socket
+from app.file_lock import file_lock
+from app.retry_utils import retry_with_backoff, is_retryable_error
 
 HEARTBEAT_FILE_A = "/data/heartbeat_a.log"
 HEARTBEAT_FILE_B = "/data/heartbeat_b.log"
@@ -105,8 +107,9 @@ def save_network_status(status):
     """保存网络状态到文件"""
     try:
         os.makedirs("/data", exist_ok=True)
-        with open(NETWORK_STATUS_FILE, 'w') as f:
-            json.dump(status, f)
+        with file_lock(NETWORK_STATUS_FILE):
+            with open(NETWORK_STATUS_FILE, 'w') as f:
+                json.dump(status, f)
     except Exception as e:
         print(f"保存网络状态错误: {e}")
 
@@ -116,47 +119,73 @@ def _load_pending_notifications():
         return []
     
     try:
-        with open(PENDING_NOTIFICATIONS_FILE, 'r') as f:
-            return json.load(f)
+        with file_lock(PENDING_NOTIFICATIONS_FILE):
+            with open(PENDING_NOTIFICATIONS_FILE, 'r') as f:
+                return json.load(f)
     except (json.JSONDecodeError, IOError):
         return []
 
 def _save_pending_notifications(notifications):
     """保存待发送通知队列"""
     try:
-        with open(PENDING_NOTIFICATIONS_FILE, 'w') as f:
-            json.dump(notifications, f)
+        with file_lock(PENDING_NOTIFICATIONS_FILE):
+            with open(PENDING_NOTIFICATIONS_FILE, 'w') as f:
+                json.dump(notifications, f)
     except IOError as e:
         print(f"保存待发送通知失败: {e}")
 
 def send_email_with_resend(subject, html_body):
-    """使用 Resend API 发送邮件"""
+    """使用 Resend API 发送邮件（带重试机制）"""
     if not all([RESEND_API_KEY, SENDER_FROM_ADDRESS, RECIPIENT_EMAIL]):
         print("错误：邮件配置环境变量不完整。无法发送邮件。")
         return False
 
-    import resend
-    resend.api_key = RESEND_API_KEY
-    params = {
-        "from": SENDER_FROM_ADDRESS,
-        "to": [RECIPIENT_EMAIL],
-        "subject": subject,
-        "html": html_body,
-    }
-    try:
+    def send_email():
+        """实际的发送邮件函数"""
+        import resend
+        resend.api_key = RESEND_API_KEY
+        params = {
+            "from": SENDER_FROM_ADDRESS,
+            "to": [RECIPIENT_EMAIL],
+            "subject": subject,
+            "html": html_body,
+        }
         email = resend.Emails.send(params)
         print(f"邮件已通过 Resend 发送成功！ Email ID: {email['id']}")
         return True
+    
+    try:
+        # 使用重试机制：最多3次，初始延迟1秒，指数退避
+        retry_with_backoff(
+            send_email,
+            max_retries=3,
+            initial_delay=1,
+            backoff_factor=2,
+            exceptions=(Exception,),
+            should_retry_func=is_retryable_error
+        )
+        return True
     except Exception as e:
-        print(f"使用 Resend 发送邮件失败: {e}")
+        print(f"使用 Resend 发送邮件失败（所有重试均失败）: {e}")
         return False
 
 def process_pending_notifications():
     """处理待发送的通知队列"""
-    notifications = _load_pending_notifications()
-    if not notifications:
-        return
+    # 在同一个锁内完成读取操作
+    with file_lock(PENDING_NOTIFICATIONS_FILE):
+        try:
+            if not os.path.isfile(PENDING_NOTIFICATIONS_FILE):
+                return  # 文件不存在，无需处理
+            
+            with open(PENDING_NOTIFICATIONS_FILE, 'r') as f:
+                notifications = json.load(f)
+            
+            if not notifications:
+                return  # 队列为空，无需处理
+        except (json.JSONDecodeError, IOError):
+            return  # 读取失败，跳过处理
     
+    # 在锁外发送邮件，避免长时间持有锁
     print(f"发现 {len(notifications)} 个待发送通知，尝试发送...")
     
     successful_notifications = []
@@ -184,6 +213,14 @@ def check_and_send_pending_notifications(network_status):
 
 if __name__ == "__main__":
     print("--- 后台任务：心跳服务已启动（增强版）---")
+    
+    # 确保数据目录存在并设置正确的权限
+    os.makedirs("/data", exist_ok=True)
+    try:
+        os.chmod("/data", 0o700)  # 仅所有者可读写执行
+    except Exception as e:
+        print(f"警告：无法设置目录权限: {e}")
+    
     use_file_a = True
 
     while True:
@@ -192,8 +229,9 @@ if __name__ == "__main__":
         try:
             # 更新心跳文件
             os.makedirs("/data", exist_ok=True)
-            with open(target_file, 'w') as f:
-                f.write(str(int(time.time())))
+            with file_lock(target_file):
+                with open(target_file, 'w') as f:
+                    f.write(str(int(time.time())))
 
             # 检查并保存网络状态
             network_status = check_network_connectivity()
