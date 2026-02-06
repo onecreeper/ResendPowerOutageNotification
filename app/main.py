@@ -3,10 +3,10 @@ import resend
 import time
 import json
 from datetime import datetime
-from app.file_lock import file_lock
-from app.retry_utils import retry_with_backoff, is_retryable_error
-from app.disk_monitor import check_disk_space, get_disk_usage_str
-from app.html_utils import escape_html
+from file_lock import file_lock
+from retry_utils import retry_with_backoff, is_retryable_error
+from disk_monitor import check_disk_space, get_disk_usage_str
+from html_utils import escape_html
 
 # --- 配置：从环境变量读取 ---
 RESEND_API_KEY = os.getenv("RESEND_API_KEY")

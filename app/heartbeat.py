@@ -3,8 +3,8 @@ import os
 import json
 import subprocess
 import socket
-from app.file_lock import file_lock
-from app.retry_utils import retry_with_backoff, is_retryable_error
+from file_lock import file_lock
+from retry_utils import retry_with_backoff, is_retryable_error
 
 HEARTBEAT_FILE_A = "/data/heartbeat_a.log"
 HEARTBEAT_FILE_B = "/data/heartbeat_b.log"
