@@ -144,27 +144,40 @@ def check_network_status_changes():
     # 检查内网状态变化
     internal_changed = (current_status["internal_network"] != history["last_internal_network"])
     external_changed = (current_status["external_network"] != history["last_external_network"])
-    
+
     if internal_changed or external_changed:
-        # 发送网络状态变化通知
-        send_network_status_email(current_status, history)
-        
+        # 创建网络状态变化通知对象
+        notification = {
+            "type": "network_status",
+            "timestamp": int(time.time()),
+            "current_status": current_status,
+            "previous_status": history,
+            "subject": f"[网络状态] 服务器 {SERVER_NAME} 网络连接变化",
+            "html_body": _generate_network_status_email_body(current_status, history)
+        }
+
+        # 只有在外网正常时才立即发送，否则添加到待发送队列
+        if current_status["external_network"]:
+            print("外网正常，立即发送网络状态变化通知...")
+            send_email_with_resend(notification["subject"], notification["html_body"])
+        else:
+            print("外网断开，将网络状态变化通知添加到待发送队列...")
+            _add_pending_notification(notification)
+
         # 更新历史记录
         history["last_internal_network"] = current_status["internal_network"]
         history["last_external_network"] = current_status["external_network"]
         _save_network_history(history)
-        
-        print("网络状态变化已检测并通知")
+
+        print("网络状态变化已检测")
     else:
         print("网络状态无变化")
 
-def send_network_status_email(current_status, previous_status):
-    """发送网络状态变化邮件"""
+def _generate_network_status_email_body(current_status, previous_status):
+    """生成网络状态变化邮件内容"""
     internal_status = "恢复正常" if current_status["internal_network"] else "中断"
     external_status = "恢复正常" if current_status["external_network"] else "中断"
-    
-    subject = f"[网络状态] 服务器 {SERVER_NAME} 网络连接变化"
-    
+
     html_body = f"""
     <html><body>
         <h3>服务器网络状态变化通知</h3>
@@ -192,9 +205,8 @@ def send_network_status_email(current_status, previous_status):
         <p>DNS解析: {'正常' if current_status['dns_resolution'] else '异常'}</p>
     </body></html>
     """
-    
-    print(f"发送网络状态变化邮件: 内网{internal_status}, 外网{external_status}")
-    send_email_with_resend(subject, html_body)
+
+    return html_body
 
 def main():
     print("--- 启动检查：断电监控服务（自愈模式） ---")

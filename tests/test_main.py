@@ -390,8 +390,8 @@ class TestMainFunctionality:
             main.NETWORK_STATUS_FILE = original_status_file
             main.NETWORK_HISTORY_FILE = original_history_file
 
-    def test_send_network_status_email(self):
-        """测试发送网络状态变化邮件"""
+    def test_generate_network_status_email_body(self):
+        """测试生成网络状态变化邮件内容"""
         import sys
         sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
         from app import main
@@ -407,18 +407,14 @@ class TestMainFunctionality:
             "last_external_network": True
         }
 
-        with patch('app.main.send_email_with_resend') as mock_send:
-            main.send_network_status_email(current_status, previous_status)
+        html_body = main._generate_network_status_email_body(current_status, previous_status)
 
-            # 验证调用参数
-            assert mock_send.called
-            args, kwargs = mock_send.call_args
-            subject = args[0]
-            html_body = args[1]
-
-            assert "网络状态" in subject
-            assert "内网连接" in html_body
-            assert "外网连接" in html_body
+        # 验证邮件内容
+        assert "网络状态变化通知" in html_body
+        assert "内网连接" in html_body
+        assert "外网连接" in html_body
+        assert "正常" in html_body
+        assert "中断" in html_body
 
     @patch('app.main._add_pending_notification')
     def test_main_power_outage_detected(self, mock_add_notification, heartbeat_files):
