@@ -27,3 +27,10 @@ power_monitor_data/
 
 # 日志文件（如果将来添加）
 *.log
+
+# 测试相关
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.hypothesis/
